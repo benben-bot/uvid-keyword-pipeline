@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { generateSeedKeywords, AXES } from "@/lib/gemini";
-import { getKeywordStats } from "@/lib/naver-ads";
-import {
-  filterBySearchVolume,
-  deduplicateKeywords,
-} from "@/lib/utils";
+import { deduplicateKeywords } from "@/lib/utils";
 
 export const maxDuration = 60;
 
 export async function POST() {
   try {
-    // 모든 축을 병렬로 처리 (타임아웃 방지)
+    // 모든 축을 병렬로 처리
     const results = await Promise.allSettled(
       AXES.map((_, i) => generateSeedKeywords(i))
     );
@@ -24,15 +20,18 @@ export async function POST() {
       }
     });
 
-    // Deduplicate seeds
-    const uniqueSeeds = Array.from(new Set(allSeedKeywords.map((s) => s.replace(/\s+/g, ""))));
+    // Deduplicate
+    const uniqueSeeds = Array.from(
+      new Set(allSeedKeywords.map((s) => s.replace(/\s+/g, "")))
+    ).filter((s) => s.length > 0);
 
-    // Get search volumes
-    const keywords = await getKeywordStats(uniqueSeeds);
-    const filtered = filterBySearchVolume(deduplicateKeywords(keywords), 100);
-
-    const tagged = filtered.map((kw) => ({
-      ...kw,
+    // S2는 시드 키워드만 반환 (검색량은 S3에서 처리)
+    const tagged = uniqueSeeds.map((keyword) => ({
+      keyword,
+      monthlyPcQcCnt: 0,
+      monthlyMobileQcCnt: 0,
+      totalSearchVolume: 0,
+      compIdx: "낮음",
       source: "step2-Claude시드",
     }));
 
