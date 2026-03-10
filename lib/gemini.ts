@@ -1,6 +1,3 @@
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-
 const AXES = [
   {
     name: "증상/효과",
@@ -69,8 +66,8 @@ export { AXES };
 export async function generateSeedKeywords(
   axisIndex: number
 ): Promise<string[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
   const axis = AXES[axisIndex];
   if (!axis) throw new Error(`Invalid axis index: ${axisIndex}`);
@@ -87,26 +84,27 @@ export async function generateSeedKeywords(
 - JSON 배열 형식으로만 응답 (다른 텍스트 없이)
 - 예시: ["선크림추천","자외선차단제","SPF50선크림"]`;
 
-  const res = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.8,
-        maxOutputTokens: 500,
-      },
+      model: "claude-haiku-4-5",
+      max_tokens: 500,
+      messages: [{ role: "user", content: prompt }],
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${errText}`);
+    throw new Error(`Claude API error ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
-  const text =
-    data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+  const text = data.content?.[0]?.text || "[]";
 
   // Extract JSON array from response
   const match = text.match(/\[[\s\S]*?\]/);
