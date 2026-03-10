@@ -4,25 +4,25 @@ import { getKeywordStats } from "@/lib/naver-ads";
 import {
   filterBySearchVolume,
   deduplicateKeywords,
-  sleep,
 } from "@/lib/utils";
 
 export const maxDuration = 60;
 
 export async function POST() {
   try {
-    const allSeedKeywords: string[] = [];
+    // 모든 축을 병렬로 처리 (타임아웃 방지)
+    const results = await Promise.allSettled(
+      AXES.map((_, i) => generateSeedKeywords(i))
+    );
 
-    // Call Gemini for each of 12 axes
-    for (let i = 0; i < AXES.length; i++) {
-      try {
-        const seeds = await generateSeedKeywords(i);
-        allSeedKeywords.push(...seeds);
-        await sleep(500); // Rate limiting
-      } catch (err) {
-        console.error(`Gemini axis ${i} error:`, err);
+    const allSeedKeywords: string[] = [];
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        allSeedKeywords.push(...result.value);
+      } else {
+        console.error(`Claude axis ${i} error:`, result.reason);
       }
-    }
+    });
 
     // Deduplicate seeds
     const uniqueSeeds = Array.from(new Set(allSeedKeywords.map((s) => s.replace(/\s+/g, ""))));
@@ -33,12 +33,12 @@ export async function POST() {
 
     const tagged = filtered.map((kw) => ({
       ...kw,
-      source: "step2-Gemini시드",
+      source: "step2-Claude시드",
     }));
 
     return NextResponse.json({
       step: 2,
-      name: "Gemini AI 시드 키워드 생성",
+      name: "Claude AI 시드 키워드 생성",
       count: tagged.length,
       seedsGenerated: uniqueSeeds.length,
       keywords: tagged,
