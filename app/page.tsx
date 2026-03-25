@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import PipelineControl from "@/components/PipelineControl";
 import KeywordTable from "@/components/KeywordTable";
 import StatsCards from "@/components/StatsCards";
+import SeedEditor from "@/components/SeedEditor";
 import { Keyword } from "@/lib/utils";
 
 interface StepStatus {
@@ -27,6 +28,7 @@ export default function Home() {
   const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(INITIAL_STEPS);
   const [allKeywords, setAllKeywords] = useState<Keyword[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [customS1Seeds, setCustomS1Seeds] = useState<string[]>([]);
   const [sheetsStatus, setSheetsStatus] = useState<
     "idle" | "saving" | "loading" | "saved" | "loaded" | "error"
   >("idle");
@@ -51,6 +53,9 @@ export default function Home() {
 
       try {
         let body: Record<string, unknown> = {};
+        if (step === 1 && customS1Seeds.length > 0) {
+          body = { customSeeds: customS1Seeds };
+        }
         if (step === 3 || step === 4 || step === 5) {
           body = { seedKeywords: seedKeywords || [] };
         }
@@ -267,6 +272,7 @@ export default function Home() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         <StatsCards keywords={allKeywords} stepStatuses={stepStatuses} />
+        <SeedEditor onSeedsChange={setCustomS1Seeds} />
         <PipelineControl
           stepStatuses={stepStatuses}
           isRunning={isRunning}

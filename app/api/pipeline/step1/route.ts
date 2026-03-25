@@ -5,12 +5,23 @@ import { filterBySearchVolume, deduplicateKeywords } from "@/lib/utils";
 
 export const maxDuration = 60;
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    // Collect all seed keywords from subcategories
-    const allSeeds: string[] = [];
-    for (const sub of SUNCARE_SUBCATEGORIES) {
-      allSeeds.push(...sub.seeds);
+    // Accept custom seeds from request body, fall back to defaults
+    let allSeeds: string[] = [];
+    try {
+      const body = await req.json();
+      if (Array.isArray(body?.customSeeds) && body.customSeeds.length > 0) {
+        allSeeds = body.customSeeds.map((s: string) => s.trim()).filter(Boolean);
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    if (allSeeds.length === 0) {
+      for (const sub of SUNCARE_SUBCATEGORIES) {
+        allSeeds.push(...sub.seeds);
+      }
     }
 
     // Get search volume stats via Naver Ads API
