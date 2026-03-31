@@ -21,19 +21,20 @@ const DEFAULT_SEEDS = [
   "선케어",
 ];
 
-const STORAGE_KEY = "uvid_s1_seeds";
+const BRAND_ID = "uvid";
 
 interface SeedEditorProps {
   onSeedsChange: (seeds: string[]) => void;
 }
 
-export const loadSeeds = (): string[] => {
-  if (typeof window === "undefined") return DEFAULT_SEEDS;
+export const loadSeeds = async (): Promise<string[]> => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    const res = await fetch(`/api/seeds?brand_id=${BRAND_ID}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.keywords) && data.keywords.length > 0) {
+        return data.keywords;
+      }
     }
   } catch {
     // ignore
@@ -47,22 +48,14 @@ export default function SeedEditor({ onSeedsChange }: SeedEditorProps) {
   const [editText, setEditText] = useState("");
   const [saved, setSaved] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const loaded = loadSeeds();
-    setSeeds(loaded);
-    onSeedsChange(loaded);
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setIsCustom(
-          JSON.stringify(parsed) !== JSON.stringify(DEFAULT_SEEDS)
-        );
-      } catch {
-        // ignore
-      }
-    }
+    loadSeeds().then((loaded) => {
+      setSeeds(loaded);
+      onSeedsChange(loaded);
+      setIsCustom(JSON.stringify(loaded) !== JSON.stringify(DEFAULT_SEEDS));
+    });
   }, [onSeedsChange]);
 
   const handleOpen = () => {
@@ -71,28 +64,46 @@ export default function SeedEditor({ onSeedsChange }: SeedEditorProps) {
     setSaved(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newSeeds = editText
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
     if (newSeeds.length === 0) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newSeeds));
-    setSeeds(newSeeds);
-    onSeedsChange(newSeeds);
-    setIsCustom(JSON.stringify(newSeeds) !== JSON.stringify(DEFAULT_SEEDS));
-    setSaved(true);
-    setIsOpen(false);
+    setLoading(true);
+    try {
+      await fetch("/api/seeds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand_id: BRAND_ID, keywords: newSeeds }),
+      });
+      setSeeds(newSeeds);
+      onSeedsChange(newSeeds);
+      setIsCustom(JSON.stringify(newSeeds) !== JSON.stringify(DEFAULT_SEEDS));
+      setSaved(true);
+      setIsOpen(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReset = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setSeeds(DEFAULT_SEEDS);
-    onSeedsChange(DEFAULT_SEEDS);
-    setEditText(DEFAULT_SEEDS.join("\n"));
-    setIsCustom(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleReset = async () => {
+    setLoading(true);
+    try {
+      await fetch("/api/seeds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand_id: BRAND_ID, keywords: DEFAULT_SEEDS }),
+      });
+      setSeeds(DEFAULT_SEEDS);
+      onSeedsChange(DEFAULT_SEEDS);
+      setEditText(DEFAULT_SEEDS.join("\n"));
+      setIsCustom(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -106,16 +117,21 @@ export default function SeedEditor({ onSeedsChange }: SeedEditorProps) {
             수정됨
           </span>
         )}
+        <span className="px-1.5 py-0.5 bg-green-100 text-green-600 rounded text-xs">
+          ☁️ 클라우드 저장
+        </span>
         <button
           onClick={handleOpen}
-          className="ml-auto px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+          disabled={loading}
+          className="ml-auto px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs disabled:opacity-50"
         >
           ✏️ 편집
         </button>
         {isCustom && (
           <button
             onClick={handleReset}
-            className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors text-xs"
+            disabled={loading}
+            className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors text-xs disabled:opacity-50"
           >
             기본값으로 초기화
           </button>
@@ -148,13 +164,15 @@ export default function SeedEditor({ onSeedsChange }: SeedEditorProps) {
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={handleSave}
-              className="px-4 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors font-medium"
+              disabled={loading}
+              className="px-4 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
             >
-              저장
+              {loading ? "저장 중..." : "저장"}
             </button>
             <button
               onClick={handleReset}
-              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors"
+              disabled={loading}
+              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
             >
               기본값으로 초기화
             </button>
